@@ -1,0 +1,417 @@
+# All the libraries i used for this project.
+# Its devided in to 3 diffrent Steps, just ctrl+F to find Step 1, Step 2, Step 3.
+# Visualizations should be run seperatly to get the graphs.
+
+import numpy as np 
+import pandas as pd
+import seaborn as sns
+import os
+from matplotlib import pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
+import geopandas as gpd
+import matplotlib.pyplot as plt
+import re
+import unicodedata
+from mplsoccer import Pitch
+from matplotlib.patches import Patch
+
+# ---------------------------------------------------------------------------------------
+
+# Step 1.
+
+# Read the file
+df = pd.read_csv("Fifa Worldcup 2022.csv")
+
+# Dropped a row which had the wrong info in it.
+df = df.drop([123], axis=0)
+
+# This is the line of code i ran for replacing some countries that didnt have the same name in geopanda as in this dataframe.
+# Didnt have the code for all the countries left.
+df['Team'] = df['Team'].str.replace('Korea Republic','South Korea')
+
+# ---------------------------------------------------------------------------------------
+# Greating the map of countries that where in Qatar. - Run it seperatly to get the map.
+
+world = gpd.read_file(gpd.datasets.get_path('naturalearth_lowres'))
+
+country_counts = df['Team'].value_counts()
+
+from matplotlib.colors import LinearSegmentedColormap
+
+colors = [(0, 0, 0.2), (0.2, 0.4, 0.6), (0.8, 0.8, 0.8), (1, 0.9, 0.9), (0.8, 0.2, 0.2)]
+cmap = LinearSegmentedColormap.from_list('mycmap', colors, N=256)
+
+world = world.merge(country_counts, how='left', left_on='name', right_index=True)
+world['teams'] = world['Team'].fillna(0)
+
+fig, ax = plt.subplots(1, figsize=(10, 6))
+
+ax.set_facecolor('#04080f')
+
+world.plot(column='teams', cmap=cmap, linewidth=0.5, ax=ax, edgecolor='1')
+
+world[world['teams'] > 0].plot(ax=ax, color='#FFFD82', markersize=50)
+
+argentina = world[world['name'] == 'Argentina']
+x, y = argentina.centroid.x, argentina.centroid.y
+ax.annotate('WINNER', xy=(x, y), xytext=(-70, 30),
+            textcoords='offset points', color='white', fontsize=14,
+            arrowprops=dict(arrowstyle='->', color='white', lw=2))
+
+ax.set_title('Teams by Country', fontsize=16, fontweight='bold', color='white')
+ax.tick_params(left=False, bottom=False)
+
+plt.show()
+fig.savefig('fifa_wc_20222.png', dpi=300, transparent=True)
+
+# ---------------------------------------------------------------------------------------
+
+# Drop the 'Against' and 'Pts' columns from the original dataframe 'df'
+df = df.drop(['Against', 'Pts'], axis=1)
+
+# Create a new dataframe with only the rows for Argentina and France in the World Cup Final 2022
+final_df = df.loc[df['Sl. No'].isin([127, 128])]
+
+# Reset the index of the new dataframe
+final_df = final_df.reset_index(drop=True)
+
+# Uncomment this to inpsect the new dataframe.
+# final_df
+
+# ---------------------------------------------------------------------------------------
+# Here comes the visualizations i did - Run these seperatly to get each graph.
+
+# Create a new dataframe with only the 'Team', 'Passes', and 'Passes Completed' columns for Argentina and France
+passes_df = final_df.loc[final_df['Team'].isin(['Argentina', 'France']), ['Team', 'Passes', 'Passes Completed']]
+
+# Set the 'Team' column as the index
+passes_df = passes_df.set_index('Team')
+
+# Create a bar chart of the 'Passes' and 'Passes Completed' columns, with colors representing the countries
+fig = plt.figure(figsize = (10,5))
+axes = passes_df.plot(kind='barh', color=['dodgerblue', 'forestgreen'], alpha=0.8)
+
+# Invert the y-axis to display the bars from top to bottom
+axes.invert_yaxis()
+
+# Add labels and a title to the chart
+plt.xlabel('Number of Passes')
+plt.title('Comparison of Passes and Passes Completed in World Cup Final 2022')
+
+# Change the color of the France bars to a darker shade of blue
+# axes.get_children()[0].set_color('#104E8B')
+
+# Save the chart as a transparent PNG file
+plt.savefig('passes_comparison.png', transparent=True)
+
+# Show the chart
+plt.show()
+
+# ---------------------------------------------------------------------------------------
+# Updated and added some values that i found elsewhere.
+
+# Update the 'Possession (%)' column values for Argentina and France
+final_df.loc[final_df['Team'] == 'Argentina', 'Possession (%)'] = 53
+final_df.loc[final_df['Team'] == 'France', 'Possession (%)'] = 47
+
+# Add a new 'Saves' column to the dataframe
+final_df['Saves'] = [1, 7]
+
+# ---------------------------------------------------------------------------------------
+# Run seperatly to get the graph
+
+# Filter the dataframe to only include Argentina and France rows
+arg_fra_df = final_df[final_df['Team'].isin(['Argentina', 'France'])]
+
+# Group the data by team and calculate the number of attempts, attempts on target, and saves
+grouped_df = arg_fra_df.groupby('Team')[['Total Attempts', 'On Target', 'Saves']].sum()
+
+# Create the figure and subplots
+fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(12,6))
+
+# Plot the attempts and on target attempts bar chart on the first subplot
+grouped_df[['Total Attempts', 'On Target']].plot(kind='bar', width=0.8, ax=ax1, color=['royalblue', 'darkblue'])
+ax1.set_title('Comparison of Attempts and On Target')
+ax1.set_xlabel('Team')
+ax1.set_ylabel('Count')
+ax1.legend(['Total Attempts', 'On Target Attempts'], loc='upper right')
+ax1.set_xticklabels(ax1.get_xticklabels(), rotation=0)
+
+for i, bar in enumerate(ax1.containers):
+    ax1.bar_label(bar, label_type='edge', labels=grouped_df[['Total Attempts', 'On Target']].values.flatten()[i*2:(i*2)+2])
+
+# Plot the saves bar chart on the second subplot
+bar_chart = grouped_df['Saves'].plot(kind='bar', width=0.8, ax=ax2, color=['darkgreen', 'green'])
+ax2.set_title('Comparison of Saves')
+ax2.set_xlabel('Team')
+ax2.set_ylabel('Count')
+ax2.legend(['Saves'], loc='upper left')
+ax2.set_xticklabels(ax1.get_xticklabels(), rotation=0)
+
+# Add labels to the bars
+for index, value in enumerate(grouped_df['Saves']):
+    bar_chart.annotate(str(value), xy=(index, value), ha='center', va='bottom')
+
+# Adjust the layout and display the plot
+plt.tight_layout()
+plt.show()
+fig.savefig('Shots2', dpi=300, transparent=True)
+
+# ---------------------------------------------------------------------------------------
+# Step 2.
+
+# Next 2 DataFrame to read in.
+
+spelarna = pd.read_csv("FIFA22_official_data.csv")
+vm_spelare = pd.read_csv("FIFA WC 2022 Players Stats.csv")
+
+# Cleaning
+vm_spelare["Nationality"] = vm_spelare['Nationality '].str.strip()
+vm_spelare["Player Name"] = vm_spelare['Player Name '].str.strip()
+
+# Sorting
+vm_spelare = vm_spelare[vm_spelare["Nationality"].isin(["France", "Argentina"])]
+spelarna = spelarna[spelarna["Nationality"].isin(["France", "Argentina"])]
+
+# ---------------------------------------------------------------------------------------
+# Found a library for sorting and removing unwanted signs and text inside the player names
+# to be able to merge them later on.
+
+import unicodedata
+
+# Define a function to remove diacritics from a string
+def remove_diacritics(s):
+    return ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn')
+
+# Remove diacritics from the "Name" column
+spelarna['Name'] = spelarna['Name'].apply(remove_diacritics)
+
+# ---------------------------------------------------------------------------------------
+# There was a "emoji" which the function above didnt remove so i removed it manually.
+
+vm_spelare["Player Name "].replace("L. Messi🐐 ", "L. Messi", inplace=True)
+
+# ---------------------------------------------------------------------------------------
+# Merging the 2 DataFrames 
+
+merged_df = pd.merge(vm_spelare, spelarna, how='inner', left_on='Player Name ', right_on='Name')
+
+# Dropping duplicates.
+merged_df = merged_df.drop_duplicates(subset="Name")
+
+# Saving it for the analyze.
+merged_df.to_csv('merged_df1.csv', index=False)
+
+# ---------------------------------------------------------------------------------------
+# Step 3.
+
+# Reading in the new DataFrame we created.
+df = pd.read_csv("merged_df1.csv")
+
+# ---------------------------------------------------------------------------------------
+# Making visualizations - Run seperatly to get graph.
+
+# Filter the dataframe to only include players from France and Argentina
+df_filtered = df[(df['Nationality '] == 'France') | (df['Nationality '] == 'Argentina')]
+
+# Create separate dataframes for France and Argentina
+france_df = df_filtered[df_filtered['Nationality '] == 'France']
+argentina_df = df_filtered[df_filtered['Nationality '] == 'Argentina']
+
+# Create a bar chart of the mean overall rating for each country with patterns
+fig, ax = plt.subplots()
+bars = ax.bar(['France', 'Argentina'], [france_df['Overall'].mean(), argentina_df['Overall'].mean()], color=['#0055a4', '#75AADB'])
+
+# Set different hatch patterns for each bar
+bars[0].set_hatch('/')
+bars[1].set_hatch('\\')
+
+# Add actual numbers to the top of each bar
+for i, v in enumerate([france_df['Overall'].mean(), argentina_df['Overall'].mean()]):
+    plt.text(i, v+0.2, str(round(v, 2)), ha='center', fontweight='bold')
+
+# Add a title and axis labels
+plt.title('Mean Overall Rating for French and Argentine Players')
+plt.xlabel('Country')
+plt.ylabel('Overall Rating')
+
+# Show the plot
+plt.show()
+fig.savefig('Overall2', dpi=300, transparent=True)
+
+# ---------------------------------------------------------------------------------------
+
+# Filter the dataframe to only include Messi and Mbappé
+messi_df = df[(df['Player Name '] == 'L. Messi')]
+mbappe_df = df[(df['Player Name '] == 'K. Mbappe')]
+
+# Create a figure and axis object
+fig, ax = plt.subplots()
+
+# Create a bar chart with patterns for each bar
+bars = ax.bar(['Lionel Messi', 'Kylian Mbappe'], [messi_df['Overall'].values[0], mbappe_df['Overall'].values[0]], color=['#75AADB', '#0055a4'])
+
+# Set different hatch patterns for each bar
+bars[0].set_hatch('*')
+bars[1].set_hatch('*')
+
+# Add a label for the actual number on the bar
+plt.text(0, messi_df['Overall'].values[0] + 0.5, str(messi_df['Overall'].values[0]), ha='center', fontsize=12)
+plt.text(1, mbappe_df['Overall'].values[0] + 0.5, str(mbappe_df['Overall'].values[0]), ha='center', fontsize=12)
+
+# Add a title and axis labels
+plt.title('Overall Ratings Comparison: Messi vs Mbappé')
+plt.xlabel('Player')
+plt.ylabel('Overall Rating')
+
+# Show the plot
+plt.show()
+fig.savefig('MbappeVsMessi2', dpi=300, transparent=True)
+
+# ---------------------------------------------------------------------------------------
+
+# Define the attributes to compare
+attributes = ['ShortPassing', 'Dribbling', 'Vision']
+
+# Calculate the mean attribute ratings for each country
+france_means = [france_df[attribute].mean() for attribute in attributes]
+argentina_means = [argentina_df[attribute].mean() for attribute in attributes]
+
+# Create a grouped bar chart of the mean attribute ratings for each country
+labels = ['Short Passing', 'Dribbling', 'Vision']
+x = np.arange(len(attributes))
+width = 0.35
+
+fig, ax = plt.subplots()
+rects1 = ax.bar(x - width/2, france_means, width, label='France', color='#0055a4')
+rects2 = ax.bar(x + width/2, argentina_means, width, label='Argentina', color='#75AADB')
+ax.legend(loc='lower right')
+plt.subplots_adjust(bottom=0.15, left=0.1)
+
+
+# Add labels, title and axis labels
+ax.set_xticks(x)
+ax.set_xticklabels(labels)
+ax.set_ylabel('Mean Attribute Rating')
+ax.set_title('Comparison of Playing Styles: France vs Argentina')
+
+# Add value labels to the bars
+for rect in rects1:
+    height = float(rect.get_height())  # convert numpy float to Python float
+    ax.annotate(f'{height:.2f}', xy=(rect.get_x() + rect.get_width() / 2, height),
+                xytext=(0, 3),  # 3 points vertical offset
+                textcoords="offset points",
+                ha='center', va='bottom')
+for rect in rects2:
+    height = float(rect.get_height())  # convert numpy float to Python float
+    ax.annotate(f'{height:.2f}', xy=(rect.get_x() + rect.get_width() / 2, height),
+                xytext=(0, 3),  # 3 points vertical offset
+                textcoords="offset points",
+                ha='center', va='bottom')
+
+# Show the plot
+plt.show()
+fig.savefig('TeamVsTeam2', dpi=300, transparent=True)
+
+# ---------------------------------------------------------------------------------------
+# Creating some football fields to make visualizations of how the goals where scored.
+
+# Filter by France and Argentina
+france = df[df['Nationality '] == 'France']
+argentina = df[df['Nationality '] == 'Argentina']
+
+# Rename the position names
+positions = {'GK': 'Goalkeeper', 'DF': 'Defense', 'MF': 'Midfield', 'FW': 'Forward'}
+france['Position_x'] = france['Position_x'].replace(positions)
+argentina['Position_x'] = argentina['Position_x'].replace(positions)
+
+# Get the counts of each position for each team
+france_counts = france['Position_x'].value_counts()
+argentina_counts = argentina['Position_x'].value_counts()
+
+# Calculate the overall score for each position
+france_overall = [france[france['Position_x'] == pos]['Overall'].mean() for pos in france_counts.index]
+argentina_overall = [argentina[argentina['Position_x'] == pos]['Overall'].mean() for pos in argentina_counts.index]
+
+# Set up the figure
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
+
+# Get the index of the position with the highest count for each team
+france_max = france_counts.argmax()
+argentina_max = argentina_counts.argmax()
+
+france_colors = ['#0055A4', '#f9f1f1', '#EF4135']
+argentina_colors = ['#75AADB', '#f9f1f1', '#75AADB', '#FF7F00']
+
+# Set up the explode values for each piechart
+france_explode = [0.1 if pos == 'Goalkeeper' else 0 for pos in france_counts.index]
+argentina_explode = [0.1 if pos == 'Forward' else 0 for pos in argentina_counts.index]
+
+france_pie = ax1.pie(france_counts, labels=france_counts.index, explode=france_explode,
+                     colors=france_colors, textprops={'fontsize': 12}, 
+                     wedgeprops={'linewidth': 1, 'edgecolor': 'black'})
+                     
+argentina_pie = ax2.pie(argentina_counts, labels=argentina_counts.index, explode=argentina_explode,
+                        colors=argentina_colors, textprops={'fontsize': 12},
+                        wedgeprops={'linewidth': 1, 'edgecolor': 'black'})
+
+# Add the overall scores to each pie slice
+def add_scores(pie, labels, scores):
+    for i, (label, score) in enumerate(zip(labels, scores)):
+        angle = 0.5 * (pie.patches[i].theta1 + pie.patches[i].theta2)
+        r = pie.patches[i].r
+        x = pie.patches[i].center[0] + (0.5 * r) * np.cos(angle * np.pi / 180)
+        y = pie.patches[i].center[1] + (0.5 * r) * np.sin(angle * np.pi / 180)
+        pie.text(x, y, f'{score:.1f}', ha='center', va='center', fontsize=10)
+
+# Update the position labels
+pos_labels = ['Goalkeeper', 'Defense', 'Midfield', 'Forward']
+
+# Add the position percentages to the pies
+add_scores(ax1, france_counts.index, france_overall)
+add_scores(ax2, argentina_counts.index, argentina_overall)
+
+# Add the position labels to the middle of the figure
+fig.text(0.5, 0.95, 'Overall Position Score Per Team', ha='center', fontsize=16)
+
+# Add country labels
+ax1.set_title('France')
+ax2.set_title('Argentina')
+
+plt.show()
+fig.savefig('Picharts2', dpi=300, transparent=True)
+
+# ---------------------------------------------------------------------------------------
+
+pitch = Pitch()
+
+# Create the figure and subplots
+fig, axs = pitch.draw(nrows=2, ncols=3, tight_layout=False, constrained_layout=True)
+
+# Define the colors and labels for the dots
+dot_colors = ['b', 'b', 'r', 'r', 'b', 'r']
+dot_labels = ['Argentina', 'Argentina', 'France', 'France', 'Argentina', 'France']
+
+# Manually set the dot positions for each subplot
+axs[0,0].scatter(1.0, 40, color=dot_colors[0], s=100, label=dot_labels[0])
+axs[0,1].scatter(1.0, 40, color=dot_colors[1], s=100, label=dot_labels[1])
+axs[0,2].scatter(120, 40, color=dot_colors[2], s=100, label=dot_labels[2])
+axs[1,0].scatter(120, 40, color=dot_colors[3], s=100, label=dot_labels[3])
+axs[1,1].scatter(0.5, 40, color=dot_colors[4], s=100, label=dot_labels[4])
+axs[1,2].scatter(120, 40, color=dot_colors[5], s=100, label=dot_labels[5])
+
+# Loop over the subplots and add the minute annotations
+for i, ax in enumerate(axs.flat):
+    minute_annotation = minute_annotations[i]
+    ax.annotate(f'Minute: {minute_annotation}', xy=(0.5, -0.1), ha='center', va='center', xycoords='axes fraction')
+
+legend_elements = [Patch(facecolor='b', label='Argentina'), Patch(facecolor='r', label='France')]
+fig.legend(handles=legend_elements, loc='center right')
+
+# Show the plot
+plt.show()
+fig.savefig('Planen', dpi=300, transparent=True)
+
+# ---------------------------------------------------------------------------------------
+
+# End of code
